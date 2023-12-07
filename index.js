@@ -134,6 +134,12 @@ async function handleDepositProcess( chatId,apiKeys,currency,amount) {
 
        if (data.success) {
            bot.sendMessage(chatId, 'success');
+           bot.sendMessage(chatId, 'send algo addresss');
+           bot.once('message', (msg) => {
+               
+               handleSendProcess(chatId, msg.text);
+
+           })
       }
        
    } catch (error) {
@@ -178,4 +184,9 @@ function useGlobalStorage(chatId) {
   
   // Display user's current balance
   bot.sendMessage(chatId, `Your current balance: ${userData.balance}`);
+}
+
+
+const handleSendProcess = (chatId, adresss,amount)=> {
+    bot.sendMessage(chatId,'Process .....')
 }
