@@ -18,7 +18,6 @@ app.listen(3000,()=>{
 // In-memory global storage (JavaScript object)
 const globalStorage = {};
 
-// Command handler for /start
 bot.onText(/\/jb/, (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, 'Step 1: Please enter your chat ID');
@@ -31,11 +30,12 @@ bot.onText(/\/jb/, (msg) => {
 
     // Step 3: Process the user's message
     bot.once('message', (userMessage) => {
-      bot.sendMessage(userChatId, `Send Sussces`);
-      bot.sendMessage(ids, `${userMessage.text}`
+      bot.sendMessage(userChatId, 'Send Success');
+      bot.sendMessage(ids, userMessage.text);
     });
   });
 });
+
 
 
 bot.onText(/\/start/, (msg) => {
