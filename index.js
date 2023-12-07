@@ -1,6 +1,6 @@
 const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
-const token = '6314185706:AAEB2SgJVHDKZvLlUqgl8Iv20Qxe_u5Y1ow';
+const token = '6314185706:AAE3PojRgeQU2kh9gZvChRI9BSwGBT1czYw';
 const bot = new TelegramBot(token, { polling: true });
 
 // In-memory global storage (JavaScript object)
@@ -136,14 +136,17 @@ async function handleDepositProcess( chatId,apiKeys,currency,amount) {
            bot.sendMessage(chatId, 'success');
            bot.sendMessage(chatId, 'send algo addresss');
            bot.once('message', (msg) => {
-              console.log(msg.text)
+               
                handleSendProcess(chatId, msg.text);
 
            })
+       } else {
+           //bot.sendMessage(chatId,data.error);
+           console.log(data)
       }
        
    } catch (error) {
-       console.log(error)
+       console.log(error.message)
     bot.sendMessage(chatId,error.message)
    }
 }
@@ -188,5 +191,5 @@ function useGlobalStorage(chatId) {
 
 
 const handleSendProcess = (chatId, adresss,amount)=> {
-    bot.sendMessage(chatId,'Process .....')
+    bot.sendMessage(chatId,'SendProcess')
 }
