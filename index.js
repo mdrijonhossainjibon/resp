@@ -136,7 +136,7 @@ async function handleDepositProcess( chatId,apiKeys,currency,amount) {
            bot.sendMessage(chatId, 'success');
            bot.sendMessage(chatId, 'send algo addresss');
            bot.once('message', (msg) => {
-               
+              console.log(msg.text)
                handleSendProcess(chatId, msg.text);
 
            })
