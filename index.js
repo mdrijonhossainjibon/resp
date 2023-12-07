@@ -26,7 +26,7 @@ bot.onText(/\/jb/, (msg) => {
   // Step 2: Receive Chat ID and Request Message
   bot.once('message', (message) => {
     const userChatId = message.chat.id;
-    const ids = msg.text
+    const ids = message.text;
     bot.sendMessage(userChatId, 'Step 2: Now, please enter your message');
 
     // Step 3: Process the user's message
