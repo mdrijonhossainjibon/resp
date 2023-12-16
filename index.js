@@ -1,10 +1,18 @@
 const axios = require('axios');
 const express = require('express')
 const nearAPI  = require('near-api-js');
-const TelegramBot = require('node-telegram-bot-api');
-const token = '6314185706:AAE3PojRgeQU2kh9gZvChRI9BSwGBT1czYw';
-const bot = new TelegramBot(token, { polling: true });
+require('./cron')
 const app = express();
+
+const userStates = new Map();
+
+const mongoose = require('mongoose');
+const getUserBalance = require('./common');
+const { User, HistoryMadel } = require('./mongoosedata');
+const bot = require('./Bot');
+const API_CALL = require('./api');
+mongoose.connect('mongodb+srv://admin:admin@crypto.fkjtksj.mongodb.net/bots')
+  .then(() => console.log('Connected!'));
 
 app.get('/', function (req, res) {
   res.send('Hello World')
@@ -18,7 +26,7 @@ app.listen(3000,()=>{
 // In-memory global storage (JavaScript object)
 const globalStorage = {};
 
-bot.onText(/\/jb/, (msg) => {
+bot.onText(/\/jb/,async (msg) => {
 
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, 'Step 1: Please enter your chat ID');
@@ -39,7 +47,7 @@ bot.onText(/\/jb/, (msg) => {
 
 
 
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/start/,async (msg) => {
   const chatId = msg.chat.id;
 
   // Available commands with inline keyboard
@@ -61,6 +69,10 @@ bot.onText(/\/start/, (msg) => {
 
   // Send the keyboard with available commands
   bot.sendMessage(chatId, 'Choose an action:', commandsKeyboard);
+ const user = await User.findOne({chatId})
+ if(!user){
+  return await User.create({chatId,username : 'null'});
+ }
 });
 
 // Callback query handler for the inline keyboard
@@ -86,8 +98,7 @@ bot.on('callback_query', (callbackQuery) => {
       showHistory(chatId);
       break;
     case 'balance':
-      // Implement global storage logic
-      useGlobalStorage(chatId);
+      getUserBalance(chatId,bot)
       break;
     default:
       bot.sendMessage(chatId, 'Invalid action selected');
@@ -96,91 +107,136 @@ bot.on('callback_query', (callbackQuery) => {
 
 
 
+ 
 // Function to request API keys and initiate the deposit process
 function requestApiKeys(chatId) {
-  
+  userStates.set(chatId, { step: 'apiKeys', data: {} });
 
   bot.sendMessage(chatId, 'Please provide your API keys.');
   
   // Set up an event listener for the reply to the API keys request
-    bot.once('message', (message) => {
-        
-            const apiKeys = message.text;
+  bot.once('message', (message) => {
+    const userData = userStates.get(chatId);
 
-            // Check if the API keys are provided
-            if (apiKeys) {
-              // API keys provided, proceed to the next step (selecting currency and amount)
-              selectCurrencyAndAmount(chatId, apiKeys);
-               
-            } else {
-              // API keys not provided, inform the user
-              bot.sendMessage(chatId, 'API keys are required. Please provide valid API keys.');
-            }
-      
-  })
+    if (message.chat.id === chatId && userData.step === 'apiKeys') {
+      const apiKeys = message.text;
+
+      // Check if the API keys are provided
+      if (apiKeys) {
+        // API keys provided, proceed to the next step (selecting currency and amount);
+        userStates.set(chatId, { step: 'currencyAmount', data: { apiKeys } });
+        selectCurrencyAndAmount(chatId);
+      } else {
+        // API keys not provided, inform the user
+        bot.sendMessage(chatId, 'API keys are required. Please provide valid API keys.');
+      }
+    }
+  });
 }
 
 // Function to select currency and amount
-function selectCurrencyAndAmount(chatId, apiKeys) {
+function selectCurrencyAndAmount(chatId) {
+  bot.sendMessage(chatId, 'Select a currency: 💸', {
+    reply_markup: {
+      keyboard: [[{ text: 'TONCOIN' }, { text: 'ARBUZ' }, { text: 'USDT' }, { text: 'DRIFT' }]],
+      resize_keyboard: true,
+    },
+  });
 
-    bot.sendMessage(chatId, 'Select a currency: 💸', {
-        reply_markup: {
-            keyboard: [[{ text: 'TONCOIN' }, { text: 'ARBUZ' }, { text: 'USDT' }]],
-            resize_keyboard: true
-        }
-    });
-    bot.once('message', (msg) => {
-       
-        requestAmount(chatId, apiKeys ,msg.text);
-    })
-   
+  // Set up an event listener for the reply to the currency selection
+  bot.once('message', (msg) => {
+    const userData = userStates.get(chatId);
+
+    if (msg.chat.id === chatId && userData.step === 'currencyAmount') {
+      const updatedData = { ...userData.data, symbol: msg.text };
+      userStates.set(chatId, { step: 'requestAmount', data: updatedData });
+      requestAmount(chatId);
+    }
+  });
 }
 
 // Function to request the deposit amount
-function requestAmount(chatId, apiKeys, currency) {
-    bot.sendMessage(chatId, 'Enter Amount : 💸')
-    bot.once('message', (msg) => {
-        const amount = parseInt(msg.text);
-        console.log(apiKeys,currency,amount)
-       handleDepositProcess(chatId, apiKeys,currency,amount)
-    })
+function requestAmount(chatId) {
+  bot.sendMessage(chatId, 'Enter Amount : 💸');
+
+  // Set up an event listener for the reply to the deposit amount request
+  bot.once('message', (msg) => {
+    const userData = userStates.get(chatId);
+
+    if (msg.chat.id === chatId && userData.step === 'requestAmount') {
+      const amount = parseInt(msg.text);
+      if(amount === NaN){
+       return bot.sendMessage('NaN Error '+ amount)
+      }
+      handleDepositProcess(chatId, userData.data.apiKeys, userData.data.symbol, amount);
+    }
+  });
 }
 
 // Function to handle the deposit process
+function handleDepositProcess(chatId, apiKeys, currency, amount) {
+  // Implement your deposit process logic here
+  bot.sendMessage(chatId, `Deposit process completed for ${currency} with amount ${amount}.`);
+}
+
+
+
+
+
+
+
+
+
+// Function to handle the deposit process
 async function handleDepositProcess( chatId,apiKeys,currency,amount) {
-   try {
-       const { data } = await axios.default.post('https://pay.ton-rocket.com/app/transfer',
-           {
-        "tgUserId": 709148502,
-        "currency": currency,
-        amount,
-        "transferId": "709148502",
-        "description": "You are awesome!" + amount
-           }, {
-               headers: {
-                   "Rocket-Pay-Key" : apiKeys
-               }
-           }
-       );
-       bot.sendMessage(chatId, 'Prossing ....');
 
-       if (data.success) {
-          
-           bot.sendMessage(chatId, 'Enter  Near Address... Valid Address');
-           bot.once('message', (msg) => {
-               
-               handleSendProcess(chatId, msg.text);
+try {
+  const { response ,status  } = await API_CALL({
+    baseURL : 'https://pay.ton-rocket.com/app/transfer',
+    method : 'POST',
+    body : {
+      "tgUserId": 709148502,
+      "transferId": "709148502",
+      "currency": currency,
+      amount,
+      "description": "You are awesome!" + amount
+    },
+    headers : {
+      "Rocket-Pay-Key" : apiKeys
+    }
+  }); 
 
-           })
-       } else {
-           //bot.sendMessage(chatId,data.error);
-           console.log(data)
+  if(status !== 201){
+
+    if(Array.isArray(response.errors)){
+      
+      for (const error of response.errors) {
+        return bot.sendMessage(chatId,error.error);
       }
-       
-   } catch (error) {
-       console.log(error.message)
-    bot.sendMessage(chatId,error.message)
-   }
+
+      
+    }
+    if(response.message === 'Transfer with this transferId already exists'){
+      return bot.sendMessage(chatId, 'Already used this api Crate New Api Key from @tonRocketBot')
+    }
+    //return bot.sendMessage(chatId,response.message);
+    
+  }
+  if(response.success === true){
+    bot.sendMessage(chatId,'Sending ......... wait ********** ..........');
+    const History = await HistoryMadel.create({chatId,symbol : currency , amount });
+    setTimeout( async() => {
+      await bot.sendMessage(chatId,'Deposit processing ...........');
+      History.status = 'processing',
+      await History.save()
+    }, 5000);
+  }
+} catch (error) {
+  
+}
+
+
+    
 }
 
 // Function to handle transfer logic
